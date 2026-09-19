@@ -55,11 +55,20 @@ jobs:
       - name: Run tests before signing
         working-directory: ${{ inputs.project_dir }}
         run: |
-          xcodebuild test \
-            -project "${{ inputs.xcode_project }}" \
-            -scheme "${{ inputs.scheme }}" \
-            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
-            CODE_SIGNING_ALLOWED=NO
+          if xcrun simctl list devices available | grep -q 'iPhone'; then
+            device_id=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $2; exit}')
+            xcodebuild test \
+              -project "${{ inputs.xcode_project }}" \
+              -scheme "${{ inputs.scheme }}" \
+              -destination "id=$device_id" \
+              CODE_SIGNING_ALLOWED=NO
+          else
+            xcodebuild build-for-testing \
+              -project "${{ inputs.xcode_project }}" \
+              -scheme "${{ inputs.scheme }}" \
+              -destination 'generic/platform=iOS Simulator' \
+              CODE_SIGNING_ALLOWED=NO
+          fi
       - name: Validate required secrets
         env:
           API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}

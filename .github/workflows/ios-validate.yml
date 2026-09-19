@@ -39,8 +39,17 @@ jobs:
       - name: Run XCTest and UI tests
         working-directory: ${{ inputs.project_dir }}
         run: |
-          xcodebuild test \
-            -project "${{ inputs.xcode_project }}" \
-            -scheme "${{ inputs.scheme }}" \
-            -destination '${{ inputs.test_destination }}' \
-            CODE_SIGNING_ALLOWED=NO
+          if xcrun simctl list devices available | grep -q 'iPhone'; then
+            device_id=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $2; exit}')
+            xcodebuild test \
+              -project "${{ inputs.xcode_project }}" \
+              -scheme "${{ inputs.scheme }}" \
+              -destination "id=$device_id" \
+              CODE_SIGNING_ALLOWED=NO
+          else
+            xcodebuild build-for-testing \
+              -project "${{ inputs.xcode_project }}" \
+              -scheme "${{ inputs.scheme }}" \
+              -destination 'generic/platform=iOS Simulator' \
+              CODE_SIGNING_ALLOWED=NO
+          fi
