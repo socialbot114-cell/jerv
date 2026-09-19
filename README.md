@@ -1,7 +1,8 @@
-# JERV — Worker de auditoria dos apps
+# JERV — App Factory e Worker de auditoria
 
-Repositório de conhecimento do pipeline de criação de apps: auditorias de código,
-design e fluxo, backlog priorizado e histórico de melhorias.
+Repositório de conhecimento e automação do pipeline de criação de apps:
+auditorias de código, design e fluxo, backlog priorizado, templates SwiftUI,
+validação de release e workflows reutilizáveis.
 
 **Regra dura: nenhum segredo aqui.** Sem `.p8`, `.jks`, `.keystore`, `keystore.properties`,
 API keys ou tokens. Achados de segurança citam o problema, nunca o valor.
@@ -13,13 +14,31 @@ jerv/
   README.md            este arquivo
   worker/
     prioritize.py      worker sob demanda: prioriza achados via TypeSafe Jev
+  jerv_cli.py           CLI determinística de validação, auditoria e scaffolding
+  templates/            templates de novos apps
+  workflows/            workflows reutilizáveis do GitHub Actions
+  xcode-cloud/          scripts para gerar projetos no Xcode Cloud
+  blueprints/           contratos iniciais dos apps Brasília
   reports/
     YYYY-MM-DD-rodada-N/
       README.md        resumo executivo da rodada
       <projeto>.md     1 arquivo por projeto com analise e problemas
 ```
 
-## Como rodar (sob demanda)
+## Como rodar a fábrica
+
+```bash
+python3 jerv_cli.py validate path/to/app.yml
+python3 jerv_cli.py audit path/to/app.yml
+python3 jerv_cli.py release-check path/to/app.yml
+python3 jerv_cli.py init path/to/new-app --manifest blueprints/restaurantes-ios/app.yml
+```
+
+`validate` verifica a estrutura, o bundle, o catálogo, o Privacy Manifest e
+arquivos que parecem segredos. `release-check` também exige que todos os
+registros estejam marcados como `data_status: verified`.
+
+## Worker Jev (sob demanda)
 
 ```sh
 set -a; . ~/.config/typesafe/.env; set +a

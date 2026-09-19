@@ -1,0 +1,17 @@
+# Canonical app contract. Copy this file into each product repository.
+name: Example App
+product_name: ExampleApp
+bundle_id: br.com.example.app
+sku: example-app
+app_store_id: "0000000000"
+platform: ios
+deployment_target: "17.0"
+template: ios-swiftui-directory
+catalog:
+  path: Resources/Catalog/catalog.json
+  required_fields: [id, name, source, last_verified]
+privacy_manifest: Resources/PrivacyInfo.xcprivacy
+release:
+  artifact_name: example-ios-ipa
+  scheme: ExampleApp
+  test_destination: "platform=iOS Simulator,name=iPhone 17,OS=latest"

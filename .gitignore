@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+reports/jerv/
+*.p8
+*.cer
+*.key
+*.mobileprovision
+*.jks
+*.keystore
+keystore.properties
+local.properties

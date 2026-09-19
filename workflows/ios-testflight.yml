@@ -1,0 +1,152 @@
+name: JERV iOS TestFlight release
+
+on:
+  workflow_call:
+    inputs:
+      project_dir:
+        required: false
+        type: string
+        default: .
+      scheme:
+        required: true
+        type: string
+      xcode_project:
+        required: true
+        type: string
+      bundle_id:
+        required: true
+        type: string
+      artifact_name:
+        required: true
+        type: string
+    secrets:
+      APPLE_API_KEY_P8:
+        required: true
+      APPLE_API_KEY_ID:
+        required: true
+      APPLE_API_ISSUER_ID:
+        required: true
+      APPLE_DISTRIBUTION_CERT:
+        required: true
+      APPLE_DISTRIBUTION_KEY:
+        required: true
+      APPLE_PROVISIONING_PROFILE:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate release contract
+        run: |
+          python3 -m pip install --disable-pip-version-check PyYAML
+          python3 tools/jerv_cli.py release-check app.yml
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: ${{ inputs.project_dir }}
+        run: xcodegen generate --spec project.yml
+      - name: Run tests before signing
+        working-directory: ${{ inputs.project_dir }}
+        run: |
+          xcodebuild test \
+            -project "${{ inputs.xcode_project }}" \
+            -scheme "${{ inputs.scheme }}" \
+            -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Validate required secrets
+        env:
+          API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          CERT: ${{ secrets.APPLE_DISTRIBUTION_CERT }}
+          DIST_KEY: ${{ secrets.APPLE_DISTRIBUTION_KEY }}
+          PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          for name in API_KEY API_KEY_ID ISSUER_ID CERT DIST_KEY PROFILE; do
+            test -n "${!name:-}" || { echo "Missing Apple secret: $name" >&2; exit 1; }
+          done
+      - name: Install signing assets
+        env:
+          CERT: ${{ secrets.APPLE_DISTRIBUTION_CERT }}
+          DIST_KEY: ${{ secrets.APPLE_DISTRIBUTION_KEY }}
+          PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$CERT" | base64 --decode > "$RUNNER_TEMP/distribution.cer"
+          printf '%s' "$DIST_KEY" | base64 --decode > "$RUNNER_TEMP/distribution.key"
+          printf '%s' "$PROFILE" | base64 --decode > "$RUNNER_TEMP/distribution.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/distribution.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          profile_uuid=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          profile_name=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          team_id=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profile.plist")
+          app_identifier=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profile.plist")
+          test "$app_identifier" = "$team_id.${{ inputs.bundle_id }}"
+          printf 'PROFILE_NAME=%s\nTEAM_ID=%s\n' "$profile_name" "$team_id" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$RUNNER_TEMP/distribution.mobileprovision" "$HOME/Library/MobileDevice/Provisioning Profiles/${profile_uuid}.mobileprovision"
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -hex 32)"
+          security create-keychain -p "$password" "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/distribution.key" -k "$keychain" -P '' -A -T /usr/bin/codesign
+          security import "$RUNNER_TEMP/distribution.cer" -k "$keychain" -P '' -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain"
+          security default-keychain -s "$keychain"
+      - name: Archive
+        working-directory: ${{ inputs.project_dir }}
+        run: |
+          xcodebuild archive \
+            -project "${{ inputs.xcode_project }}" \
+            -scheme "${{ inputs.scheme }}" \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/app.xcarchive" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+      - name: Export IPA
+        env:
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          python3 - <<'PY'
+          import os, plistlib
+          from pathlib import Path
+          output = Path(os.environ['RUNNER_TEMP']) / 'ExportOptions.plist'
+          output.write_bytes(plistlib.dumps({'method': 'app-store', 'signingStyle': 'manual', 'teamID': os.environ['TEAM_ID'], 'provisioningProfiles': {os.environ['BUNDLE_ID']: os.environ['PROFILE_NAME']}}))
+          PY
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/app.xcarchive" -exportPath "$RUNNER_TEMP/export" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+      - name: Validate IPA
+        env:
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+        run: |
+          set -euo pipefail
+          ipa=("$RUNNER_TEMP"/export/*.ipa)
+          test -f "${ipa[0]}"
+          unzip -q "${ipa[0]}" -d "$RUNNER_TEMP/ipa"
+          app=("$RUNNER_TEMP"/ipa/Payload/*.app)
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${app[0]}/Info.plist" | grep -qx "$BUNDLE_ID"
+          test -f "${app[0]}/PrivacyInfo.xcprivacy"
+          codesign --verify --deep --strict "${app[0]}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ runner.temp }}/export/*.ipa
+      - name: Upload TestFlight
+        env:
+          API_KEY: ${{ secrets.APPLE_API_KEY_P8 }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "$API_KEY" > "$HOME/private_keys/AuthKey_${API_KEY_ID}.p8"
+          ipa=("$RUNNER_TEMP"/export/*.ipa)
+          xcrun altool --upload-app --type ios --file "${ipa[0]}" --apiKey "$API_KEY_ID" --apiIssuer "$ISSUER_ID"

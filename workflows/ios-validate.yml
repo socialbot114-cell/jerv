@@ -1,0 +1,46 @@
+name: JERV iOS validation
+
+on:
+  workflow_call:
+    inputs:
+      project_dir:
+        required: false
+        type: string
+        default: .
+      scheme:
+        required: true
+        type: string
+      xcode_project:
+        required: true
+        type: string
+      test_destination:
+        required: false
+        type: string
+        default: platform=iOS Simulator,name=iPhone 17,OS=latest
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install JERV dependencies
+        run: python3 -m pip install --disable-pip-version-check PyYAML
+      - name: Validate app contract
+        run: python3 "${{ github.workspace }}/tools/jerv_cli.py" validate app.yml
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: ${{ inputs.project_dir }}
+        run: xcodegen generate --spec project.yml
+      - name: Run XCTest and UI tests
+        working-directory: ${{ inputs.project_dir }}
+        run: |
+          xcodebuild test \
+            -project "${{ inputs.xcode_project }}" \
+            -scheme "${{ inputs.scheme }}" \
+            -destination '${{ inputs.test_destination }}' \
+            CODE_SIGNING_ALLOWED=NO
