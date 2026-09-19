@@ -12,4 +12,6 @@ if [ -d iosApp ]; then
   project_dir=iosApp
 fi
 xcodegen generate --spec "$project_dir/project.yml"
-python3 tools/jerv_cli.py release-check app.yml
+python3 -m venv .venv
+.venv/bin/pip install --disable-pip-version-check PyYAML
+.venv/bin/python tools/jerv_cli.py release-check app.yml
