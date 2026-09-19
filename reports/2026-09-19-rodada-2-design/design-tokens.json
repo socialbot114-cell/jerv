@@ -1,0 +1,45 @@
+{
+  "version": "2026.09.19-rodada-2",
+  "apps": {
+    "quem-sou-eu": {
+      "platform": "iOS SwiftUI",
+      "source": "novas atualiaz/quem_sou_eu_design_spec_mockups.md",
+      "color": {
+        "violet900": "#21104F",
+        "violetVibrant": "#6C22E8",
+        "lime": "#B8FF35",
+        "greenVibrant": "#66E91C",
+        "gold": "#FFC92F",
+        "magenta": "#E82AAF",
+        "blue": "#1FA7FF",
+        "canvas": "#FAFAFC",
+        "ink": "#101637"
+      },
+      "radius": { "cardLg": 28, "cta": 30, "cardSm": 20, "iconBox": 18, "bottomNav": 32 },
+      "shadow": {
+        "card": "0 12px 30px rgba(40,20,100,0.12)",
+        "cta": "0 12px 28px rgba(90,35,220,0.30), inset 0 2px 0 rgba(255,255,255,0.20)"
+      },
+      "type": { "display": "rounded 800-900 36-52px", "subtitle": "600-700 19-26px", "label": "700-800 18-24px" },
+      "spacing": [4, 8, 12, 16, 24, 32]
+    },
+    "receitas-airfryer": {
+      "platform": "Android Compose M3",
+      "source": "reffffs/receitas da vovo kit/start receitas vovo.png",
+      "direction": "rustico premium (vovo): madeira, ambar, serif dourada; noite quente, nao laranja flat",
+      "color": {
+        "ember": "#B4441C",
+        "amber": "#E8A33D",
+        "gold": "#D6A54A",
+        "cream": "#FAF5EC",
+        "crust": "#24211F",
+        "muted": "#746E68",
+        "leaf": "#337A4C"
+      },
+      "radius": { "cardLg": 26, "card": 20, "cta": 18, "pill": 999 },
+      "elevation": { "card": 2, "hero": 4, "cta": 6 },
+      "type": { "display": "serif Black 22-34sp", "body": "sans 13-17sp", "eyebrow": "Bold 11-12sp, tracking 1sp" },
+      "spacing": [4, 8, 12, 16, 20, 24]
+    }
+  }
+}
