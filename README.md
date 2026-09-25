@@ -50,6 +50,24 @@ O worker usa 1 chamada Jev (`jev-latest`, endpoint `/v1/systemone`) com 5 pergun
 `top_user_harm`, `top_quick_win`) e compõe o ranking no código.
 Confiança baixa (< 0.6) vai para revisão humana — ver skill `typesafe-ai`.
 
+## Revisão editorial de personagens
+
+`worker/review_character_content.py` revisa definições de perguntas e fatos do
+catálogo do jogo. A entrada é JSON com `questions` (id, texto, categoria e
+atributo) e `claims` (pessoa, pergunta, resposta proposta, afirmação, trecho da
+fonte, URL e data de verificação):
+
+```sh
+python3 worker/review_character_content.py review-input.json \
+  --output review-report.json --confidence-threshold 0.8
+```
+
+O worker usa Jev/TypeSafe para julgar clareza da pergunta e se o trecho citado
+sustenta ou contradiz a afirmação. Sem suporte claro ou com confiança abaixo do
+limite, o resultado vai para revisão humana. Uma resposta de Jev não substitui a
+fonte nem é prova de verdade. Validação determinística (duplicatas, formato,
+cobertura, separabilidade e simulação offline) continua sendo obrigatória no app.
+
 ## Rodadas
 
 - `reports/2026-09-19-rodada-1/` — primeira auditoria: 10 projetos, 100+ achados.
